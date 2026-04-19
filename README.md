@@ -6,42 +6,20 @@ We have two sections to our project, the datamining and the UI section.
 We will focus on the data mining work first, due to professor feedback, then move on to UI if we have time/desire at the end.
 
 ## GITHUB
-
-Use this main-only workflow.
-
-### First-time clone
-
+CLONE THE REPO:
 ```bash
 git clone <REPO_URL>
 cd Meteorite-Data-Mining-Analysis
 ```
-
-### Pull latest `main` before you start
-
-```bash
+PULL REPO:
 git checkout main
 git pull origin main
-```
 
-### Commit your changes
-
-```bash
+PUSH REPO:
 git status
 git add .
 git commit -m "bleh"
-```
-
-### Sync with remote main before pushing
-
-```bash
-git pull --rebase origin main
-```
-
-### Push to `main`
-
-```bash
 git push origin main
-```
 
 ## Project Overview
 
