@@ -1,0 +1,29 @@
+# Virtual environment
+.venv/
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+.codex
+
+# Windows alternate data stream artifacts
+*:Zone.Identifier
+
+# Generated project outputs (keep directory structure)
+DM/data/processed/*
+!DM/data/processed/.gitkeep
+DM/data/external/*
+!DM/data/external/.gitkeep
+DM/outputs/figures/*
+!DM/outputs/figures/.gitkeep
+DM/outputs/tables/*
+!DM/outputs/tables/.gitkeep
+DM/outputs/models/*
+!DM/outputs/models/.gitkeep
