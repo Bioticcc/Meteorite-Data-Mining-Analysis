@@ -13,4 +13,4 @@ We began by setting up the project structure, with all the folders and files tha
     5. searched for invalid latitude and longitude ranges, interestingly we found one! The meteor Meridiani Planum had a longitude of 350+ which is odd. The meteor was also discovered on MARS, adding to the confusion.
     6. Searched for duplicate rows, found none, deleted them anyway, dataset size was predictably unchanged.
     7. Searched for duplicate rows but specifically with duplicate ID's, since they should be unique. Also 0.
-    8. We then exported the cleane csv to our processed data folder.
+    8. We then exported the cleaned csv to our processed data folder.

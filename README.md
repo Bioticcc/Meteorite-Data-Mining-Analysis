@@ -43,7 +43,6 @@ git pull --rebase origin main
 git push origin main
 ```
 
-
 ## Project Overview
 
 The general idea we want is our pipeline that takes in the meteorite dataset from NASA, then using our 4 steps:
