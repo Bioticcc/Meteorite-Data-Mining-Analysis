@@ -17,10 +17,6 @@ Thumbs.db
 *:Zone.Identifier
 
 # Generated project outputs (keep directory structure)
-DM/data/processed/*
-!DM/data/processed/.gitkeep
-DM/data/external/*
-!DM/data/external/.gitkeep
 DM/outputs/figures/*
 !DM/outputs/figures/.gitkeep
 DM/outputs/tables/*
