@@ -18,7 +18,7 @@ git pull origin main
 PUSH REPO:
 git status
 git add .
-git commit -m "updated datacleaning"
+git commit -m "clustering notebook done more or less"
 git push origin main
 
 ## Project Overview
