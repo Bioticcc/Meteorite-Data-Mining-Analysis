@@ -19,7 +19,6 @@
 
 # make a note that for the fell vs found subsets, we can cluster them seperately
 # and together, to show the possible biases due to population density in the region
-
 # ------------------------------
 # CLUSTERING AND EVALUATION SECTION
 # ------------------------------
@@ -35,7 +34,7 @@
 # so at least right now we should have 6 different clusterings
 
 # ------------------------------
-# VISUALIZATION SECTION
+# VISUALIZATION AND ANALYSIS SECTION
 # ------------------------------
 
 # here we want to generate our various plots, which we will decide on in the notebook.

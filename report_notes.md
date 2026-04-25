@@ -18,3 +18,7 @@ We began by setting up the project structure, with all the folders and files tha
 ## EDA - 4/25
     Here we got some interesting information! playing around in the jupyter notebook,
     I first tried skew tests, to see how agregious the number skews might be on select numerical columns. Now, i chose mass, reclat, and reclong, thinking that while mass was obvious, we might see something neat with the geolocation data. However, it only occured to me I may have misunderstood what exactly skew tells us. Since lat and long is bounded, the skew will never really be that egregious either way. Mass however, was ridiculously skewed at mass (g) = 77.020563. So next, we did a log transform on the data.
+    After running transform, our skew changed like so:
+    Skew before: 76.91011731918955
+    Skew after : 0.9072237919413435 
+    As you can see, our skew is still somewhat bad, as the closer we are too 1, the worse, with +1 being agregious. However, I think its important to keep slight right skew if that tells the truth of the data, as it is certainly true that meteorites get absurdley large.
