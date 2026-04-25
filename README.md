@@ -18,7 +18,7 @@ git pull origin main
 PUSH REPO:
 git status
 git add .
-git commit -m "visualization notebook done"
+git commit -m "added notebook code to pipeline, cleaning up for research questions specifically"
 git push origin main
 
 ## Project Overview

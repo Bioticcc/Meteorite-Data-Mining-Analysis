@@ -1,6 +1,13 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import geopandas as gpd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
 # ------------------------------
 # INITIAL DATA CLEANING SECTION
@@ -110,8 +117,6 @@ def run_data_cleaning():
 # DATA PREPROCESSING SECTION
 # ------------------------------
 
-import geopandas as gpd
-
 
 def add_log_mass(df):
     # Now we log transform mass due to its absurd size.
@@ -211,6 +216,212 @@ def run_preprocessing(df):
 # we hsould find optimal k for each, then also do with the same k. 
 # so at least right now we should have 6 different clusterings
 
+def load_processed_data_for_clustering():
+    # loading the dataset
+    df = pd.read_csv("../data/processed/meteorite_landings_processed.csv")
+    return df
+
+
+def make_clustering_subsets(df):
+    # subsets (CAN ADD MORE LATER, FOR NOW WE JUST USE THESE 3)
+    subsets = {} # list of all of our subsets.
+    subsets_continents = {}
+
+    # main
+    subsets["main"] = df.copy()
+
+    # fell vs found
+    subsets["fell"] = df[df["fall_binary"] == 1].copy()
+    subsets["found"] = df[df["fall_binary"] == 0].copy()
+
+    # all valid geo locations
+    valid_geo = (
+        df["reclat"].between(-90, 90)
+        & df["reclong_norm"].between(-180, 180)
+        & ~((df["reclat"] == 0) & (df["reclong_norm"] == 0))
+    )
+    subsets["geo_valid"] = df[valid_geo].copy()
+
+    # land only
+    land_mask = valid_geo & (~df["continent"].isin(["Open Ocean", "Unknown"]))
+    subsets["land_only"] = df[land_mask].copy()
+
+    # modern and historic for comparisons of bias?
+    subsets["modern"] = df[df["year"] >= 1950].copy()
+    subsets["historic"] = df[df["year"] < 1950].copy()
+
+    for cont, n in df["continent"].value_counts().items(): # gets each continent and its total num records
+        if cont in ["Open Ocean", "Unknown"]: # skips if non continent
+            continue
+        if n >= 500: # if continent has at least 500, it gets a subset!
+            key = "cont_" + cont.lower().replace(" ", "_") # creates the key, cont_continentname
+            subsets_continents[key] = df[df["continent"] == cont].copy() # adds it to subsets!
+
+    print("Primary subsets:")
+    for k, v in subsets.items():
+        print(f"{k:20s} {v.shape}")
+
+    print("\nContinent subsets:")
+    for k, v in subsets_continents.items():
+        print(f"{k:20s} {v.shape}")
+
+    return subsets, subsets_continents
+
+
+def get_clustering_feature_sets():
+    # Now for the clustering! first, we want to identify our feature sets that we will use for clustering.
+    feature_sets = {
+        "baseline" : ["log_mass", "reclat", "reclong_norm", "year"],
+        "time_space" : ["year", "reclat", "reclong_norm"],
+        "mass_space" : ["log_mass", "reclat", "reclong_norm"],
+        "full" : ["log_mass", "reclat", "reclong_norm", "year", "fall_binary"]
+    }
+    return feature_sets
+
+
+def run_clustering_and_eval(subset, features, k_range=range(2, 11), n_init=20):
+    # first we want only the selected features, and non empty rows or values.
+    X = subset[features].apply(pd.to_numeric, errors='coerce').dropna() # converts to numeric and drops non numeric rows
+
+    if len(X) < 3:
+        raise ValueError("Not enough rows after dropping NaN's")
+
+    # scale for k-means
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    rows = [] # each row
+    models = {} # the k_means we have made so far, will get best at the end
+
+    # valid K range
+    valid_ks = [k for k in k_range if 2 <= k <= (len(X) - 1)]
+
+    for k in valid_ks:
+        kmeans = KMeans(n_clusters=k, n_init=n_init) # initializes the kmeans model
+        labels = kmeans.fit_predict(X_scaled) # labels for each point
+
+        if len(np.unique(labels)) < 2: # if only one cluster, silhouette score is not defined, skip
+            continue
+
+        rows.append({
+            "k": k, # number of clusters
+            "silhouette": silhouette_score(
+                X_scaled,
+                labels,
+                sample_size=min(5000, len(X_scaled)),
+                random_state=42
+            ),
+            "inertia": kmeans.inertia_ # cluster tightness
+            })
+
+        models[k] = kmeans # saves the clustering model
+
+    # scores dataframe, sorted by silhouette score, best first
+    scores = pd.DataFrame(rows).sort_values("silhouette", ascending=False)
+
+    if scores.empty:
+        raise ValueError("No valid silhouette results for this subset/features.")
+
+    best_k = int(scores.iloc[0]["k"]) # gets our best performing K!
+    best_model = models[best_k]
+
+    clustered = subset.loc[X.index].copy()
+    clustered["cluster"] = best_model.labels_
+
+    return {
+        "best_k": best_k,
+        "scores": scores,           # all tested k results
+        "model": best_model,        # fitted KMeans for best k
+        "scaler": scaler,           # fitted scaler for this subset
+        "clustered_df": clustered,  # rows used + cluster labels
+        "feature_cols": features
+    }
+
+
+def run_primary_clustering(subsets, feature_sets):
+    # next we call the clustering for each of our subsets and features sets.
+    res_main_with_fall = run_clustering_and_eval(subsets["main"], feature_sets["full"]) # main with full featureset
+
+    res_main = run_clustering_and_eval(subsets["main"], feature_sets["baseline"]) # main with baseline
+    res_fell = run_clustering_and_eval(subsets["fell"], feature_sets["baseline"]) # fell with baseline
+    res_found = run_clustering_and_eval(subsets["found"], feature_sets["baseline"]) # found with baseline
+
+    res_geo_valid = run_clustering_and_eval(subsets["geo_valid"], feature_sets["baseline"]) # only valid geo with baseline
+    res_land_only = run_clustering_and_eval(subsets["land_only"], feature_sets["baseline"]) # only land with baseline
+
+    res_modern = run_clustering_and_eval(subsets["modern"], feature_sets["baseline"]) # only modern with baseline
+    res_historic = run_clustering_and_eval(subsets["historic"], feature_sets["baseline"]) # only historic with baseline
+
+    # our results!
+    run_results = {
+        "main_baseline": res_main,
+        "main_with_fall": res_main_with_fall,
+        "fell_baseline": res_fell,
+        "found_baseline": res_found,
+        "geo_valid_baseline": res_geo_valid,
+        "land_only_baseline": res_land_only,
+        "modern_baseline": res_modern,
+        "historic_baseline": res_historic,
+    }
+
+    return run_results
+
+
+def summarize_clustering_results(run_results):
+    # summary of results sorted by score
+    summary_rows = []
+    for name, r in run_results.items():
+        best = r["scores"].iloc[0]
+        summary_rows.append({
+            "run": name,
+            "n_rows_clustered": len(r["clustered_df"]),
+            "best_k": int(r["best_k"]),
+            "best_silhouette": float(best["silhouette"]),
+            "best_inertia": float(best["inertia"]),
+            "features": ", ".join(r["feature_cols"]),
+        })
+
+    summary = pd.DataFrame(summary_rows).sort_values("best_silhouette", ascending=False)
+    print("\nK-means summary:")
+    print(summary)
+    return summary
+
+
+def build_cluster_centers(run_results):
+    # cluster centers for each run transformed back to original feature space
+    centers = {}
+    for name, r in run_results.items():
+        c = r["scaler"].inverse_transform(r["model"].cluster_centers_)
+        centers[name] = pd.DataFrame(c, columns=r["feature_cols"])
+        centers[name]["cluster"] = centers[name].index
+    return centers
+
+
+def save_clustering_outputs(summary, run_results, centers):
+    # and save to file so we dont have to do this again!
+    output_dir = Path("../outputs/tables")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    summary.to_csv(output_dir / "kmeans_summary.csv", index=False)
+
+    for name, r in run_results.items():
+        r["clustered_df"].to_csv(output_dir / f"{name}_clustered.csv", index=False)
+        centers[name].to_csv(output_dir / f"{name}_centers.csv", index=False)
+
+
+def run_clustering_pipeline():
+    # Alright, now that we have a processed dataset, we start doing clustering and eval of said clusters.
+    # This will be done on 3 subsets of the main dataset, full fell and found, with more features being
+    # subset and clustered later.
+    df = load_processed_data_for_clustering()
+    subsets, subsets_continents = make_clustering_subsets(df)
+    feature_sets = get_clustering_feature_sets()
+    run_results = run_primary_clustering(subsets, feature_sets)
+    summary = summarize_clustering_results(run_results)
+    centers = build_cluster_centers(run_results)
+    save_clustering_outputs(summary, run_results, centers)
+    return df, subsets, subsets_continents, feature_sets, run_results, summary, centers
+
 
 # ------------------------------
 # VISUALIZATION AND ANALYSIS SECTION
@@ -220,6 +431,106 @@ def run_preprocessing(df):
 # should save plots to figure and table output folders, depending on what they are.
 # we want lots of clustering related plots.
 
+# for saving clusters:
+BASE_FIG_DIR = Path("../outputs/figures/cluster plots")
+
+
+def load_visualization_data():
+    # Full cluster summary
+    summary = pd.read_csv("../outputs/tables/kmeans_summary.csv")
+
+    # row level data. each meteorite row and its assigned cluster. We use this for plotting
+    clustered_data = {
+        "main": pd.read_csv("../outputs/tables/main_baseline_clustered.csv"),
+        "main_with_fall": pd.read_csv("../outputs/tables/main_with_fall_clustered.csv"),
+        "fell": pd.read_csv("../outputs/tables/fell_baseline_clustered.csv"),
+        "found": pd.read_csv("../outputs/tables/found_baseline_clustered.csv"),
+        "geo_valid": pd.read_csv("../outputs/tables/geo_valid_baseline_clustered.csv"),
+        "land_only": pd.read_csv("../outputs/tables/land_only_baseline_clustered.csv"),
+        "modern": pd.read_csv("../outputs/tables/modern_baseline_clustered.csv"),
+        "historic": pd.read_csv("../outputs/tables/historic_baseline_clustered.csv"),
+    }
+
+    # cluster level summarys, one row per cluster centroid, which we use for interpretation.
+    # bar tables of typical cluster vals.
+    centers_data = {
+        "main": pd.read_csv("../outputs/tables/main_baseline_centers.csv"),
+        "main_with_fall": pd.read_csv("../outputs/tables/main_with_fall_centers.csv"),
+        "fell": pd.read_csv("../outputs/tables/fell_baseline_centers.csv"),
+        "found": pd.read_csv("../outputs/tables/found_baseline_centers.csv"),
+        "geo_valid": pd.read_csv("../outputs/tables/geo_valid_baseline_centers.csv"),
+        "land_only": pd.read_csv("../outputs/tables/land_only_baseline_centers.csv"),
+        "modern": pd.read_csv("../outputs/tables/modern_baseline_centers.csv"),
+        "historic": pd.read_csv("../outputs/tables/historic_baseline_centers.csv"),
+    }
+
+    return summary, clustered_data, centers_data
+
+
+def print_visualization_summary(summary):
+    # highest quality kmeans runs
+    summary_view = summary.sort_values("best_silhouette", ascending=False)[
+        ["run", "best_k", "best_silhouette", "n_rows_clustered"]
+    ]
+    print("\nVisualization summary:")
+    print(summary_view)
+
+
+def plot_clusters_scatter(dfc, x_col, y_col, title, subdir="map"):
+    # our generic cluster plotting function. Now we cluster!
+    out_dir = BASE_FIG_DIR / subdir
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    plt.figure(figsize=(8, 5))
+    sns.scatterplot(
+        data=dfc, x=x_col, y=y_col,
+        hue="cluster", palette="tab10", s=12, alpha=0.7, linewidth=0
+    )
+    plt.title(title)
+    plt.tight_layout()
+
+    filename = f"{title.lower().replace(' ', '_')}_{x_col}_vs_{y_col}.png"
+    out_path = out_dir / filename
+    plt.savefig(out_path, dpi=220, bbox_inches="tight")
+    plt.close()
+
+    print(f"Saved: {out_path}")
+
+
+def print_center_tables(centers_data):
+    # display the centroid tables (averages for each value for each cluster)
+    for name in ["main", "fell", "found", "modern", "historic"]:
+        print(f"\n{name}_centers:")
+        print(centers_data[name])
+
+
+def run_visualization_plots(clustered_data):
+    # DISPLAY CLUSTERS! AND IT WORKS WOOOOOOOOAH
+    # MAP: longitude vs latitude
+    plot_clusters_scatter(clustered_data["main"], "reclong_norm", "reclat", "Main Clusters", subdir="map")
+    plot_clusters_scatter(clustered_data["main_with_fall"], "reclong_norm", "reclat", "Main With Fall Clusters", subdir="map")
+    plot_clusters_scatter(clustered_data["fell"], "reclong_norm", "reclat", "Fell Clusters", subdir="map")
+    plot_clusters_scatter(clustered_data["found"], "reclong_norm", "reclat", "Found Clusters", subdir="map")
+    plot_clusters_scatter(clustered_data["modern"], "reclong_norm", "reclat", "Modern Clusters", subdir="map")
+    plot_clusters_scatter(clustered_data["historic"], "reclong_norm", "reclat", "Historic Clusters", subdir="map")
+
+    # TIME-MASS: year vs log mass
+    plot_clusters_scatter(clustered_data["main"], "year", "log_mass", "Main Time-Mass Clusters", subdir="time_mass")
+    plot_clusters_scatter(clustered_data["main_with_fall"], "year", "log_mass", "Main With Fall Time-Mass Clusters", subdir="time_mass")
+    plot_clusters_scatter(clustered_data["fell"], "year", "log_mass", "Fell Time-Mass Clusters", subdir="time_mass")
+    plot_clusters_scatter(clustered_data["found"], "year", "log_mass", "Found Time-Mass Clusters", subdir="time_mass")
+    plot_clusters_scatter(clustered_data["modern"], "year", "log_mass", "Modern Time-Mass Clusters", subdir="time_mass")
+    plot_clusters_scatter(clustered_data["historic"], "year", "log_mass", "Historic Time-Mass Clusters", subdir="time_mass")
+
+
+def run_visualization_pipeline():
+    # Now that we have all the data loaded from clustering, lets do some visualization and eval!
+    summary, clustered_data, centers_data = load_visualization_data()
+    print_visualization_summary(summary)
+    print_center_tables(centers_data)
+    run_visualization_plots(clustered_data)
+    return summary, clustered_data, centers_data
+
 
 # ------------------------------
 # MAIN - runs everything in order
@@ -228,3 +539,5 @@ def run_preprocessing(df):
 if __name__ == "__main__":
     df = run_data_cleaning()
     df = run_preprocessing(df)
+    run_clustering_pipeline()
+    run_visualization_pipeline()
