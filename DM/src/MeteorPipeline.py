@@ -110,16 +110,91 @@ def run_data_cleaning():
 # DATA PREPROCESSING SECTION
 # ------------------------------
 
-# log transform mass
-# feature selection
-# make the distance from equator feature
-# make a region feature so we can group by continent / ocean
-# encode fell vs found to 1 and 0
-# subsets, fell only, fall only, etc
-# normalize after we add everything
+import geopandas as gpd
 
-# make a note that for the fell vs found subsets, we can cluster them seperately
-# and together, to show the possible biases due to population density in the region
+
+def add_log_mass(df):
+    # Now we log transform mass due to its absurd size.
+    # Skew before was ~77, after log transform it drops to ~0.9 which is way better.
+    df["log_mass"] = np.log1p(df["mass (g)"])
+    return df
+
+
+def add_fall_binary(df):
+    # We also want to make fell vs found binary for clustering later.
+    df["fall_binary"] = df["fall"].map({"Found": 0, "Fell": 1})
+    return df
+
+
+def add_continent_country(df):
+    # Next, lets do some grouping! using geolocation, we split each meteorite into which continent it landed on.
+
+    df["reclong_norm"] = ((df["reclong"] + 180) % 360) - 180  # normalize to [-180, 180]
+    lat_ok = df["reclat"].between(-90, 90)
+    lon_ok = df["reclong_norm"].between(-180, 180)
+    not_missing = df["reclat"].notna() & df["reclong_norm"].notna()
+    zero_zero = (df["reclat"] == 0) & (df["reclong_norm"] == 0)  # treat as placeholder
+
+    valid = not_missing & lat_ok & lon_ok & ~zero_zero
+    print("Valid geolocation rows:", int(valid.sum()))
+    print("Invalid/unknown geolocation rows:", int((~valid).sum()))
+
+    # create a GeoDataFrame with valid geolocations
+    points = gpd.GeoDataFrame(
+        df.loc[valid].copy(),
+        geometry=gpd.points_from_xy(df.loc[valid, "reclong"], df.loc[valid, "reclat"]),
+        crs="EPSG:4326" # converts it to coords
+    )
+
+    # This is the world polygons dataset we downloaded from natural earth, lets us bound points to land boxes
+    # and determine country and continent!
+    world = gpd.read_file("../data/external/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp").to_crs("EPSG:4326")
+    land = world[["ADMIN", "CONTINENT", "geometry"]].rename(
+        columns={"ADMIN": "country_land", "CONTINENT": "continent_land"}
+    )
+
+    # this is where geopandas checks which points meteorites are in.
+    joined = gpd.sjoin(points, land, how="left", predicate="intersects")
+    joined = joined[~joined.index.duplicated(keep="first")]  # border-safe
+
+    # This is for the invalid coords
+    df["country"] = "Unknown"
+    df["continent"] = "Unknown"
+
+    # valid coords but no land, so ocean
+    df.loc[valid, "country"] = "Open Ocean"
+    df.loc[valid, "continent"] = "Open Ocean"
+
+    # and now we fill the valid coords if they have a country_land or continent_land!
+    df.loc[joined.index, "country"] = joined["country_land"].fillna("Open Ocean")
+    df.loc[joined.index, "continent"] = joined["continent_land"].fillna("Open Ocean")
+
+    return df
+
+
+def add_dist_equator(df):
+    # before we save, also get the distance from the equator in kilometers.
+    df["dist_equator_km"] = df["reclat"].abs() * 111.32
+    return df
+
+
+def save_processed_data(df):
+    # Now we save our new and improved preprocessed dataset!
+    output_path = Path("../data/processed/meteorite_landings_processed.csv")
+    df.to_csv(output_path, index=False)
+    print("Saved processed data to:", output_path)
+    return output_path
+
+
+def run_preprocessing(df):
+    # make a note that for the fell vs found subsets, we can cluster them seperately
+    # and together, to show the possible biases due to population density in the region
+    df = add_log_mass(df)
+    df = add_fall_binary(df)
+    df = add_continent_country(df)
+    df = add_dist_equator(df)
+    save_processed_data(df)
+    return df
 
 
 # ------------------------------
@@ -152,3 +227,4 @@ def run_data_cleaning():
 
 if __name__ == "__main__":
     df = run_data_cleaning()
+    df = run_preprocessing(df)
