@@ -4,10 +4,22 @@ import numpy as np
 import geopandas as gpd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import pearsonr, spearmanr
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+
+# Base paths anchored to this file so the pipeline can be run from anywhere.
+SCRIPT_DIR = Path(__file__).resolve().parent
+DM_DIR = SCRIPT_DIR.parent
+DATA_DIR = DM_DIR / "data"
+RAW_DATA_DIR = DATA_DIR / "raw"
+PROCESSED_DATA_DIR = DATA_DIR / "processed"
+EXTERNAL_DATA_DIR = DATA_DIR / "external"
+OUTPUTS_DIR = DM_DIR / "outputs"
+TABLES_DIR = OUTPUTS_DIR / "tables"
+FIGURES_DIR = OUTPUTS_DIR / "figures"
 
 # ------------------------------
 # INITIAL DATA CLEANING SECTION
@@ -18,7 +30,7 @@ from sklearn.metrics import silhouette_score
 
 def load_raw_data():
     # First we load the dataset into the notebook in a pandas dataframe, and view the first 20 rows.
-    df_original = pd.read_csv("../data/raw/Meteorite_Landings.csv")
+    df_original = pd.read_csv(RAW_DATA_DIR / "Meteorite_Landings.csv")
     return df_original
 
 
@@ -98,7 +110,8 @@ def remove_duplicates(df):
 
 def save_clean_data(df):
     # Finally, lets save our cleaned dataset to our processed data folder
-    output_path = Path("../data/processed/meteorite_landings_clean.csv")
+    output_path = PROCESSED_DATA_DIR / "meteorite_landings_clean.csv"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
     print("Saved clean data to:", output_path)
     return output_path
@@ -153,7 +166,9 @@ def add_continent_country(df):
 
     # This is the world polygons dataset we downloaded from natural earth, lets us bound points to land boxes
     # and determine country and continent!
-    world = gpd.read_file("../data/external/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp").to_crs("EPSG:4326")
+    world = gpd.read_file(
+        EXTERNAL_DATA_DIR / "ne_110m_admin_0_countries" / "ne_110m_admin_0_countries.shp"
+    ).to_crs("EPSG:4326")
     land = world[["ADMIN", "CONTINENT", "geometry"]].rename(
         columns={"ADMIN": "country_land", "CONTINENT": "continent_land"}
     )
@@ -185,7 +200,8 @@ def add_dist_equator(df):
 
 def save_processed_data(df):
     # Now we save our new and improved preprocessed dataset!
-    output_path = Path("../data/processed/meteorite_landings_processed.csv")
+    output_path = PROCESSED_DATA_DIR / "meteorite_landings_processed.csv"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
     print("Saved processed data to:", output_path)
     return output_path
@@ -218,7 +234,7 @@ def run_preprocessing(df):
 
 def load_processed_data_for_clustering():
     # loading the dataset
-    df = pd.read_csv("../data/processed/meteorite_landings_processed.csv")
+    df = pd.read_csv(PROCESSED_DATA_DIR / "meteorite_landings_processed.csv")
     return df
 
 
@@ -399,7 +415,7 @@ def build_cluster_centers(run_results):
 
 def save_clustering_outputs(summary, run_results, centers):
     # and save to file so we dont have to do this again!
-    output_dir = Path("../outputs/tables")
+    output_dir = TABLES_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 
     summary.to_csv(output_dir / "kmeans_summary.csv", index=False)
@@ -424,7 +440,7 @@ def run_clustering_pipeline():
 
 
 # ------------------------------
-# VISUALIZATION AND ANALYSIS SECTION
+# GENERAL VISUALIZATION AND ANALYSIS SECTION
 # ------------------------------
 
 # here we want to generate our various plots, which we will decide on in the notebook.
@@ -432,36 +448,36 @@ def run_clustering_pipeline():
 # we want lots of clustering related plots.
 
 # for saving clusters:
-BASE_FIG_DIR = Path("../outputs/figures/cluster plots")
+BASE_FIG_DIR = FIGURES_DIR / "cluster plots"
 
 
 def load_visualization_data():
     # Full cluster summary
-    summary = pd.read_csv("../outputs/tables/kmeans_summary.csv")
+    summary = pd.read_csv(TABLES_DIR / "kmeans_summary.csv")
 
     # row level data. each meteorite row and its assigned cluster. We use this for plotting
     clustered_data = {
-        "main": pd.read_csv("../outputs/tables/main_baseline_clustered.csv"),
-        "main_with_fall": pd.read_csv("../outputs/tables/main_with_fall_clustered.csv"),
-        "fell": pd.read_csv("../outputs/tables/fell_baseline_clustered.csv"),
-        "found": pd.read_csv("../outputs/tables/found_baseline_clustered.csv"),
-        "geo_valid": pd.read_csv("../outputs/tables/geo_valid_baseline_clustered.csv"),
-        "land_only": pd.read_csv("../outputs/tables/land_only_baseline_clustered.csv"),
-        "modern": pd.read_csv("../outputs/tables/modern_baseline_clustered.csv"),
-        "historic": pd.read_csv("../outputs/tables/historic_baseline_clustered.csv"),
+        "main": pd.read_csv(TABLES_DIR / "main_baseline_clustered.csv"),
+        "main_with_fall": pd.read_csv(TABLES_DIR / "main_with_fall_clustered.csv"),
+        "fell": pd.read_csv(TABLES_DIR / "fell_baseline_clustered.csv"),
+        "found": pd.read_csv(TABLES_DIR / "found_baseline_clustered.csv"),
+        "geo_valid": pd.read_csv(TABLES_DIR / "geo_valid_baseline_clustered.csv"),
+        "land_only": pd.read_csv(TABLES_DIR / "land_only_baseline_clustered.csv"),
+        "modern": pd.read_csv(TABLES_DIR / "modern_baseline_clustered.csv"),
+        "historic": pd.read_csv(TABLES_DIR / "historic_baseline_clustered.csv"),
     }
 
     # cluster level summarys, one row per cluster centroid, which we use for interpretation.
     # bar tables of typical cluster vals.
     centers_data = {
-        "main": pd.read_csv("../outputs/tables/main_baseline_centers.csv"),
-        "main_with_fall": pd.read_csv("../outputs/tables/main_with_fall_centers.csv"),
-        "fell": pd.read_csv("../outputs/tables/fell_baseline_centers.csv"),
-        "found": pd.read_csv("../outputs/tables/found_baseline_centers.csv"),
-        "geo_valid": pd.read_csv("../outputs/tables/geo_valid_baseline_centers.csv"),
-        "land_only": pd.read_csv("../outputs/tables/land_only_baseline_centers.csv"),
-        "modern": pd.read_csv("../outputs/tables/modern_baseline_centers.csv"),
-        "historic": pd.read_csv("../outputs/tables/historic_baseline_centers.csv"),
+        "main": pd.read_csv(TABLES_DIR / "main_baseline_centers.csv"),
+        "main_with_fall": pd.read_csv(TABLES_DIR / "main_with_fall_centers.csv"),
+        "fell": pd.read_csv(TABLES_DIR / "fell_baseline_centers.csv"),
+        "found": pd.read_csv(TABLES_DIR / "found_baseline_centers.csv"),
+        "geo_valid": pd.read_csv(TABLES_DIR / "geo_valid_baseline_centers.csv"),
+        "land_only": pd.read_csv(TABLES_DIR / "land_only_baseline_centers.csv"),
+        "modern": pd.read_csv(TABLES_DIR / "modern_baseline_centers.csv"),
+        "historic": pd.read_csv(TABLES_DIR / "historic_baseline_centers.csv"),
     }
 
     return summary, clustered_data, centers_data
@@ -533,11 +549,243 @@ def run_visualization_pipeline():
 
 
 # ------------------------------
+# ANSWERING OUR RESEARCH QUESTIONS
+# ------------------------------
+
+# Question 1: (Statistical) How does the mass of a meteor correlate with its closeness to the equator?
+
+def prepare_Q1_data(df):
+    q1 = df.copy() # we use the 
+    
+    # get the valid geolocations which we diidnt get rid of earlier and now pay for :(
+    valid_geo = (
+        q1["reclat"].between(-90, 90)
+        & q1["reclong_norm"].between(-180, 180)
+        & ~((q1["reclat"] == 0) & (q1["reclong_norm"] == 0))  # remove placeholder 0,0
+    )
+
+    q1 = q1[valid_geo].dropna(subset=["log_mass", "dist_equator_km"])
+
+    return q1
+
+def run_Q1_analysis(df):
+    q1 = prepare_Q1_data(df)
+    
+    # the two correlations we run to check for this questioin, pearson and spearman
+    pearson_r, pearson_p = pearsonr(q1["log_mass"], q1["dist_equator_km"]) # linear correlation
+    spearman_rho, spearman_p = spearmanr(q1["log_mass"], q1["dist_equator_km"]) # rank correlation
+
+    results = pd.DataFrame([{
+        "n_rows": len(q1),
+        "pearson_r": pearson_r,
+        "pearson_p": pearson_p,
+        "spearman_rho": spearman_rho,
+        "spearman_p": spearman_p,
+    }])
+
+    print("\nQuestion 1 results:")
+    print(results)
+    return q1, results
+
+def save_Q1_outputs(q1, results):
+    out_figs = FIGURES_DIR / "research_questions"
+    out_figs.mkdir(parents=True, exist_ok=True)
+
+    plt.figure(figsize=(8, 5))
+    plt.hexbin(q1["dist_equator_km"], q1["log_mass"], gridsize=60, mincnt=1)
+    plt.xlabel("Distance From Equator (km)")
+    plt.ylabel("log_mass")
+    plt.title("Q1: Mass vs Distance From Equator")
+    plt.colorbar(label="Count")
+    plt.tight_layout()
+    plt.savefig(out_figs / "question1_mass_vs_equator.png", dpi=220, bbox_inches="tight")
+    plt.close()
+
+
+# Question 2: (Clustering) Which continents are overrepresented in each cluster, and does that distribution change between historic and modern periods?
+
+def continent_overrepresentation(df):
+    # ensure we use only valid rows, no oceans or unknowns.
+    d = df[~df["continent"].isin(["Open Ocean", "Unknown"])].copy()
+
+    # overall distribution of continents in the dataset
+    base_dist = d["continent"].value_counts(normalize=True).sort_index()
+
+    # for each cluster, what % of rows are from each continent? (normalized by cluster size)
+    cluster_dist = pd.crosstab(d["cluster"], d["continent"], normalize="index")
+
+    # if ratio > 1 then overrepresented. 
+    overrepresentation = cluster_dist.div(base_dist, axis=1)
+
+    # top overrepresented continent for each cluster
+    top_continent = overrepresentation.idxmax(axis=1).rename("top_overrepresented_continent")
+
+    return base_dist, cluster_dist, overrepresentation, top_continent
+
+def run_Q2_analysis():
+    modern = pd.read_csv(TABLES_DIR / "modern_baseline_clustered.csv")
+    historic = pd.read_csv(TABLES_DIR / "historic_baseline_clustered.csv")
+
+    # get the overrepresentation metrics for modern and historic
+    m_base, m_share, m_representation, m_top = continent_overrepresentation(modern)
+    h_base, h_share, h_representation, h_top = continent_overrepresentation(historic)
+    
+    print("\nQuestion 2 results:")
+    print("\nModern top continent by cluster:")
+    print(m_top)
+    print("\nHistoric top continent by cluster:")
+    print(h_top)
+
+    return {
+        "modern": {
+            "overall_continent_share": m_base,
+            "cluster_continent_share": m_share,
+            "cluster_continent_overrepresentation": m_representation,
+            "top_overrepresented_continent_by_cluster": m_top,
+        },
+        "historic": {
+            "overall_continent_share": h_base,
+            "cluster_continent_share": h_share,
+            "cluster_continent_overrepresentation": h_representation,
+            "top_overrepresented_continent_by_cluster": h_top,
+        },
+    }
+
+def save_Q2_outputs(Q2_results):
+    out_figs = FIGURES_DIR / "research_questions"
+    out_figs.mkdir(parents=True, exist_ok=True)
+
+    # side by side heatmaps of overrepresentation for modern vs historic.
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
+
+    sns.heatmap(
+        Q2_results["modern"]["cluster_continent_overrepresentation"],
+        annot=True, fmt=".2f", cmap="YlGnBu", ax=axes[0]
+    )
+    axes[0].set_title("Modern Overrepresentation")
+    axes[0].set_xlabel("Continent")
+    axes[0].set_ylabel("Cluster")
+
+    sns.heatmap(
+        Q2_results["historic"]["cluster_continent_overrepresentation"],
+        annot=True, fmt=".2f", cmap="YlGnBu", ax=axes[1]
+    )
+    axes[1].set_title("Historic Overrepresentation")
+    axes[1].set_xlabel("Continent")
+    axes[1].set_ylabel("")
+
+    plt.suptitle("Q2: Continent Overrepresentation by Cluster (Modern vs Historic)")
+    plt.tight_layout()
+    plt.savefig(out_figs / "question2_overrepresentation_modern_vs_historic.png", dpi=220, bbox_inches="tight")
+    plt.close()
+
+
+
+# Question 3: (Clustering) Are there distinct high mass clusters with specific geographic signatures?
+
+def run_Q3_analysis():
+    main_clustered = pd.read_csv(TABLES_DIR / "main_baseline_clustered.csv")
+    main_centers = pd.read_csv(TABLES_DIR / "main_baseline_centers.csv")
+
+    # here we define what we consider a high mass cluster, which is any cluster whose centroid
+    # log mass is above the 90th percentile of all cluster centroids.
+    threshold = main_centers["log_mass"].quantile(0.90)
+    high_mass_clusters = (
+        main_centers.loc[main_centers["log_mass"] >= threshold, "cluster"]
+        .astype(int)
+        .tolist()
+    )
+
+    # for each cluster we get a table with avgs (this is essentially just the center.csv files from before)
+    signature = (
+        main_clustered.groupby("cluster")
+        .agg(
+            n_rows=("cluster", "size"),
+            mean_log_mass=("log_mass", "mean"),
+            mean_year=("year", "mean"),
+            mean_reclat=("reclat", "mean"),
+            mean_reclong_norm=("reclong_norm", "mean"),
+            mean_dist_equator_km=("dist_equator_km", "mean"),
+        )
+        .round(2)
+    )
+
+    # we find the dominant cluster by grouping by cluster and find the mode continent for each
+    dominant_continent = (
+        main_clustered[~main_clustered["continent"].isin(["Unknown", "Open Ocean"])]
+        .groupby("cluster")["continent"]
+        .agg(lambda s: s.mode().iat[0] if not s.mode().empty else "Unknown")
+    )
+    signature["dominant_continent"] = dominant_continent
+
+    # Now we filter the signature to just get the high mass clusters and sort by mean log mass.
+    high_mass_signature = signature.loc[signature.index.isin(high_mass_clusters)].sort_values(
+        "mean_log_mass", ascending=False
+    )
+
+    print("\nQuestion 3 results:")
+    print("High-mass threshold (log_mass):", round(float(threshold), 3))
+    print("High-mass clusters:", high_mass_clusters)
+    print("\nHigh-mass cluster signatures:")
+    print(high_mass_signature)
+
+    plot_df = main_clustered.copy()
+    plot_df["is_high_mass_cluster"] = plot_df["cluster"].isin(high_mass_clusters)
+
+    return {
+        "high_mass_threshold": threshold,
+        "high_mass_clusters": high_mass_clusters,
+        "high_mass_signature": high_mass_signature,
+        "plot_df": plot_df,
+    }
+
+def save_Q3_outputs(Q3_results):
+    out_figs = FIGURES_DIR / "research_questions"
+    out_figs.mkdir(parents=True, exist_ok=True)
+
+    plot_df = Q3_results["plot_df"]
+
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(
+        data=plot_df[~plot_df["is_high_mass_cluster"]],
+        x="reclong_norm", y="reclat",
+        color="lightgray", s=8, alpha=0.25, linewidth=0, legend=False
+    )
+    sns.scatterplot(
+        data=plot_df[plot_df["is_high_mass_cluster"]],
+        x="reclong_norm", y="reclat",
+        hue="cluster", palette="tab10", s=12, alpha=0.8, linewidth=0
+    )
+
+    plt.title("Q3: High-Mass Clusters Geographic Signature")
+    plt.xlabel("Longitude")
+    plt.ylabel("Latitude")
+    plt.tight_layout()
+    plt.savefig(out_figs / "question3_high_mass_geographic_signature.png", dpi=220, bbox_inches="tight")
+    plt.close()
+
+# ------------------------------
 # MAIN - runs everything in order
 # ------------------------------
 
 if __name__ == "__main__":
+    
+    # main pipeline run, our primary data mining
     df = run_data_cleaning()
     df = run_preprocessing(df)
-    run_clustering_pipeline()
+    #run_clustering_pipeline()
     run_visualization_pipeline()
+
+    # now we answer our research questions!
+
+    # Question 1: 
+    Q1_df, Q1_results = run_Q1_analysis(df)
+    save_Q1_outputs(Q1_df, Q1_results)
+
+    # Question 2:
+    Q2_results = run_Q2_analysis()
+    save_Q2_outputs(Q2_results)
+
+    # Question 3:
+    Q3_results = run_Q3_analysis()
+    save_Q3_outputs(Q3_results)
