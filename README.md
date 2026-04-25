@@ -8,7 +8,7 @@ We will focus on the data mining work first, due to professor feedback, then mov
 ## GITHUB
 CLONE THE REPO:
 ```bash
-git clone <REPO_URL>
+git clone https://github.com/Bioticcc/Meteorite-Data-Mining-Analysis
 cd Meteorite-Data-Mining-Analysis
 ```
 PULL REPO:
@@ -18,7 +18,7 @@ git pull origin main
 PUSH REPO:
 git status
 git add .
-git commit -m "bleh"
+git commit -m "Updated file structure to be less needlessly fancy"
 git push origin main
 
 ## Project Overview
@@ -133,7 +133,3 @@ jupyter lab
 - Place cleaned/intermediate outputs in `DM/data/processed/`.
 - Use `pathlib` (not hardcoded slashes) for file paths to keep code cross-platform.
 - UI implementation is intentionally deferred until later milestones.
-
-## Current Status
-
-Initial scaffold is in place for a two-person team to start data mining work immediately.
