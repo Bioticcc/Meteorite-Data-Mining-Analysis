@@ -14,3 +14,7 @@ We began by setting up the project structure, with all the folders and files tha
     6. Searched for duplicate rows, found none, deleted them anyway, dataset size was predictably unchanged.
     7. Searched for duplicate rows but specifically with duplicate ID's, since they should be unique. Also 0.
     8. We then exported the cleaned csv to our processed data folder.
+
+## EDA - 4/25
+    Here we got some interesting information! playing around in the jupyter notebook,
+    I first tried skew tests, to see how agregious the number skews might be on select numerical columns. Now, i chose mass, reclat, and reclong, thinking that while mass was obvious, we might see something neat with the geolocation data. However, it only occured to me I may have misunderstood what exactly skew tells us. Since lat and long is bounded, the skew will never really be that egregious either way. Mass however, was ridiculously skewed at mass (g) = 77.020563. So next, we did a log transform on the data.

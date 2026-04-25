@@ -18,7 +18,7 @@ git pull origin main
 PUSH REPO:
 git status
 git add .
-git commit -m "Updated file structure to be less needlessly fancy"
+git commit -m "updated datacleaning"
 git push origin main
 
 ## Project Overview
