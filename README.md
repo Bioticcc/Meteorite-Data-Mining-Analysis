@@ -18,7 +18,7 @@ git pull origin main
 PUSH REPO:
 git status
 git add .
-git commit -m "code complete"
+git commit -m "Presentation ready"
 git push origin main
 
 ## Project Overview

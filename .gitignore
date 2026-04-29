@@ -16,10 +16,9 @@ Thumbs.db
 # Windows alternate data stream artifacts
 *:Zone.Identifier
 
-# Generated project outputs (keep directory structure)
-DM/outputs/figures/*
-!DM/outputs/figures/.gitkeep
-DM/outputs/tables/*
-!DM/outputs/tables/.gitkeep
+# Generated project outputs
+# Keep figures and tables trackable for commits
+!DM/outputs/figures/**
+!DM/outputs/tables/**
 DM/outputs/models/*
 !DM/outputs/models/.gitkeep
